@@ -54,7 +54,7 @@ void loop() {
       break;
     case 1:
       if (receivedFlag) {
-        if (data == 1) {
+        if (incomingData == 1) {
           nodeState = 2;
           dispUpdate = true;
           nodeTimeout = millis();
