@@ -18,6 +18,7 @@ void setup() {
   // put your setup code here, to run once:
   SPI.begin();
   radio.begin();
+  pinMode(8, OUTPUT);
   network.begin(90, this_node);  //(channel, node address)
   nodeTimeout = millis();
 }
@@ -31,6 +32,17 @@ void loop() {
     network.read(headerIn, &incomingData, sizeof(incomingData)); // Read the incoming data
     receivedFlag = true;
   }
+  if (incomingData == 6 && receivedFlag) {
+    digitalWrite(8, HIGH);
+    receivedFlag = false;
+  }
+  if (but.isClick()) {
+    digitalWrite(8, LOW);
+    nodeTimeout = millis();
+    RF24NetworkHeader header(base00);     // (Address where the data is going)
+    data = 6;
+    bool ok = network.write(header, &data, sizeof(data)); // Send the data
+  } 
   if (receivedFlag || millis() - nodeTimeout >= period_time) {
     RF24NetworkHeader header(base00);     // (Address where the data is going)
     data = 1;

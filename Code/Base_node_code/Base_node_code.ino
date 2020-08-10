@@ -6,8 +6,8 @@
 #include <GyverOLED.h>
 
 #define BTN_PIN 4
-const unsigned long period_time = 3000;
-unsigned long nodeTimeout = 0;
+const unsigned long period_time = 3000 ;
+unsigned long nodeTimeout = 0, raiseTimeout = 0, raisePeriod;
 GButton but(BTN_PIN, HIGH_PULL);
 GyverOLED oled;
 SoftwareSerial btSerial(3, 2); // RX, TX
@@ -21,6 +21,15 @@ byte dispUpdate = false;
 bool receivedFlag = false;
 
 void setup() {
+  unsigned long seed;
+  for (int i = 0; i < 400; i++) {
+    seed = 1;
+    for (byte j = 0; j < 16; j++) {
+      seed *= 4;
+      seed += analogRead(A0) & 3;
+    }
+    Serial.println(seed);
+  }
   SPI.begin();
   Serial.begin(9600);
   btSerial.begin(9600);
@@ -66,7 +75,8 @@ void loop() {
       nodeTimeout = millis();
       digitalWrite(5, HIGH);
       receivedFlag = false;
-
+      raisePeriod = random(1000, 6000);
+      raiseTimeout = millis();
     } else if (millis() - nodeTimeout >= period_time) {
       nodeState = 0;
       digitalWrite(5, LOW);
@@ -82,7 +92,30 @@ void loop() {
       digitalWrite(5, LOW);
       dispUpdate = true;
     }
-   // Serial.println("CASE 2");
+    if (millis() - raiseTimeout >= raisePeriod && nodeState == 2) {
+      nodeState = 3;
+      data = 6;
+      RF24NetworkHeader header(node01);     // (Address where the data is going)
+      bool ok = network.write(header, &data, sizeof(data)); // Send the data
+      dispUpdate = true;
+    }
+    // Serial.println("CASE 2");
+  } else if (nodeState == 3) {
+    if (receivedFlag) {
+      if (incomingData == 6) {
+        
+        nodeState = 2;
+        raisePeriod = random(1000, 6000);
+        raiseTimeout = millis();
+        dispUpdate = true;
+      }
+      nodeTimeout = millis();
+      receivedFlag = false;
+    } else if (millis() - nodeTimeout >= period_time) {
+      nodeState = 0;
+      digitalWrite(5, LOW);
+      dispUpdate = true;
+    }
   }
 
   if (dispUpdate) {
