@@ -6,8 +6,8 @@
 #include <GyverOLED.h>
 
 #define BTN_PIN 4
-const unsigned long period_time = 3000 ;
-unsigned long nodeTimeout = 0, raiseTimeout = 0, raisePeriod;
+const unsigned long period_time = 3000, shootPeriod = 5000 ;
+unsigned long nodeTimeout = 0, raiseTimeout = 0, raisePeriod, shootTimeout;
 GButton but(BTN_PIN, HIGH_PULL);
 GyverOLED oled;
 SoftwareSerial btSerial(3, 2); // RX, TX
@@ -18,7 +18,8 @@ const uint16_t node01 = 01;
 byte nodeState = 0;
 byte incomingData, data;
 byte dispUpdate = false;
-bool receivedFlag = false;
+bool receivedFlag = false, isCivillian = false;
+int wrongHit = 0, miss = 0;
 
 void setup() {
   unsigned long seed;
@@ -76,6 +77,7 @@ void loop() {
       digitalWrite(5, HIGH);
       receivedFlag = false;
       raisePeriod = random(1000, 6000);
+      isCivillian = !random(4);
       raiseTimeout = millis();
     } else if (millis() - nodeTimeout >= period_time) {
       nodeState = 0;
@@ -93,8 +95,14 @@ void loop() {
       dispUpdate = true;
     }
     if (millis() - raiseTimeout >= raisePeriod && nodeState == 2) {
-      nodeState = 3;
-      data = 6;
+      if (isCivillian) {
+        nodeState = 4;
+        data = 7;
+      } else {
+        nodeState = 3;
+        data = 6;
+      }
+      shootTimeout = millis();
       RF24NetworkHeader header(node01);     // (Address where the data is going)
       bool ok = network.write(header, &data, sizeof(data)); // Send the data
       dispUpdate = true;
@@ -103,9 +111,10 @@ void loop() {
   } else if (nodeState == 3) {
     if (receivedFlag) {
       if (incomingData == 6) {
-        
+
         nodeState = 2;
         raisePeriod = random(1000, 6000);
+        isCivillian = !random(4);
         raiseTimeout = millis();
         dispUpdate = true;
       }
@@ -116,6 +125,44 @@ void loop() {
       digitalWrite(5, LOW);
       dispUpdate = true;
     }
+    if (millis() - shootTimeout >= shootPeriod) {
+      nodeState = 2;
+      miss++;
+      data = 8;
+      RF24NetworkHeader header(node01);     // (Address where the data is going)
+      bool ok = network.write(header, &data, sizeof(data)); // Send the data
+      raisePeriod = random(1000, 6000);
+      isCivillian = !random(4);
+      raiseTimeout = millis();
+      dispUpdate = true;
+    }
+  } else if (nodeState == 4) {
+    if (receivedFlag) {
+      if (incomingData == 7) {
+        wrongHit++;
+        nodeState = 2;
+        raisePeriod = random(1000, 6000);
+        isCivillian = !random(4);
+        raiseTimeout = millis();
+        dispUpdate = true;
+      }
+      nodeTimeout = millis();
+      receivedFlag = false;
+    } else if (millis() - nodeTimeout >= period_time) {
+      nodeState = 0;
+      digitalWrite(5, LOW);
+      dispUpdate = true;
+    }
+    if (millis() - shootTimeout >= shootPeriod) {
+      nodeState = 2;
+      data = 8;
+      RF24NetworkHeader header(node01);     // (Address where the data is going)
+      bool ok = network.write(header, &data, sizeof(data)); // Send the data
+      raisePeriod = random(1000, 6000);
+      isCivillian = !random(4);
+      raiseTimeout = millis();
+      dispUpdate = true;
+    }
   }
 
   if (dispUpdate) {
@@ -123,6 +170,10 @@ void loop() {
     oled.home();      // курсор в 0,0
     oled.scale1X();    // масштаб шрифта х1
     oled.print(nodeState);
+    oled.print(' ');
+    oled.print(wrongHit);
+    oled.print(' ');
+    oled.print(miss);
     oled.update();
     dispUpdate = false;
   }
