@@ -3,7 +3,7 @@
 #include <SPI.h>
 #include <SoftwareSerial.h>
 #include <GyverButton.h>
-#include <GyverOLED.h>
+#include <iarduino_OLED_txt.h> 
 
 #define BTN_PIN 4
 #define PARSE_AMOUNT 5         // число значений в массиве, который хотим получить
@@ -15,7 +15,8 @@ byte index;
 const unsigned long period_time = 3000, shootPeriod = 5000 ;
 unsigned long nodeTimeout = 0, raiseTimeout = 0, raisePeriod, shootTimeout;
 GButton but(BTN_PIN, HIGH_PULL);
-GyverOLED oled;
+iarduino_OLED_txt oled(0x3C); 
+extern uint8_t MediumFont[], SmallFont[];  
 SoftwareSerial btSerial(2, 3); // RX, TX
 RF24 radio(7, 9);               // nRF24L01 (CE,CSN)
 RF24Network network(radio);      // Include the radio in the network
@@ -23,9 +24,9 @@ const uint16_t this_base = 00;   // Address of this node in Octal format ( 04,03
 const uint16_t node01 = 01;
 byte nodeState = 0;
 byte incomingData, data;
-byte dispUpdate = false, playFlag = false;
+byte dispUpdate = true, playFlag = false;
 bool receivedFlag = false, isCivillian = false;
-int wrongHit = 0, miss = 0;
+int wrongHit = 0, miss = 0, hit = 0;
 
 void setup() {
   unsigned long seed;
@@ -46,14 +47,11 @@ void setup() {
   digitalWrite(5, LOW);
   digitalWrite(4, LOW);
   network.begin(90, this_base);  //(channel, node address)
-  oled.init(OLED128x64, 800);
-  oled.setContrast(1);
-  oled.clear();      // очистить
-  oled.home();      // курсор в 0,0
-  oled.scale1X();    // масштаб шрифта х1
-  oled.print("Привет, ");
-  oled.update();
+  oled.begin();
+  oled.setFont(SmallFont);
+  oled.print("Hello", OLED_C, 4);
   delay(2000);
+  oled.clrScr();
 }
 
 void loop() {
@@ -73,7 +71,7 @@ void loop() {
     data = 1;
     RF24NetworkHeader header(node01);     // (Address where the data is going)
     bool ok = network.write(header, &data, sizeof(data)); // Send the data
-    dispUpdate = true;
+    //dispUpdate = true;
     nodeTimeout = millis();
     Serial.println("CASE 0");
   } else if (nodeState == 1) {
@@ -89,7 +87,7 @@ void loop() {
       nodeState = 0;
       digitalWrite(5, LOW);
       digitalWrite(4, LOW);
-      dispUpdate = true;
+      //dispUpdate = true;
     }
     Serial.println("CASE 1");
   } else if (nodeState == 2) {
@@ -120,7 +118,7 @@ void loop() {
     if (playFlag) {
       if (receivedFlag) {
         if (incomingData == 6) {
-
+          hit++;
           nodeState = 2;
           calcTime();
           dispUpdate = true;
@@ -195,23 +193,29 @@ void loop() {
     }
   }
   if (dispUpdate) {
-    oled.clear();      // очистить
-    oled.home();      // курсор в 0,0
-    oled.scale1X();    // масштаб шрифта х1
-    oled.print(nodeState);
-    oled.print(' ');
-    oled.print(wrongHit);
-    oled.print(' ');
-    oled.print(miss);
+    oled.clrScr();      // очистить
+      // курсор в 0,0
+    oled.setFont(SmallFont);    // масштаб шрифта х1
+    //oled.print(nodeState);
+    //oled.print(' ');
+    oled.print(String(hit) + " " + String(wrongHit) + " " + String(miss),    0,      0);
+    
+    if (nodeState > 1) {
+      oled.print(F("Online"), 0, 7);
+    } else {
+      oled.print(F("Offline"), 0, 7);
+    }
     oled.print(' ');
     if (playFlag) {
-      oled.print("Playing");
+      oled.print(F("ON"), OLED_R, 7);
       
     } else {
-      oled.print("Stopped");
+      oled.print(F("STOP"), OLED_R, 7);
     }
+    oled.setFont(MediumFont);
 
-    oled.update();
+    oled.print("0:11", OLED_C, 4);
+
     dispUpdate = false;
   }
 
