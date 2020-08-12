@@ -26,8 +26,15 @@ byte nodeState = 0;
 byte incomingData, data;
 byte dispUpdate = true, playFlag = false;
 bool receivedFlag = false, isCivillian = false;
-int wrongHit = 0, miss = 0, hit = 0;
 
+//Игровые переменные - СТАТИСТИКА
+int wrongHit = 0, miss = 0, hit = 0;
+//
+//Игровые переменные - РЕЖИМ И ПАРАМЕТРЫ ИГРЫ
+int gameMode = 1, gameTimeMin = 1, gameTimeSec = 30, remainHP = 100;
+int gameHP = 100, gameMinDamage = 5, gameMaxDamage = 30;
+unsigned long surviveTime = 0, startTime = 0, endTime = 0, timeRemain = 90000, oledUpdTimer = 0;   
+//
 void setup() {
   unsigned long seed;
   for (int i = 0; i < 400; i++) {
@@ -66,6 +73,113 @@ void loop() {
     Serial.print(' ');
     Serial.println(nodeState);
   }
+  nodeChecking();
+  parsing();
+  btCommands();
+  if (gameMode == 1 && endTime <= millis() && playFlag) {
+    playFlag = false;
+    nodeState = 2;
+    dispUpdate = true;
+    data = 8;
+    RF24NetworkHeader header(node01);     // (Address where the data is going)
+    bool ok = network.write(header, &data, sizeof(data)); // Send the data
+    digitalWrite(4, LOW);
+  }
+  if (gameMode == 1 && playFlag && millis() - oledUpdTimer >= 1000) {
+    dispUpdate = true;
+    oledUpdTimer = millis();
+  }
+  oledDisplay();
+}
+
+void btCommands () {
+  if (btFlag) {                           // если получены данные
+    btFlag = false;
+    if (intData[0] == 1) {
+      playFlag = true;
+      digitalWrite(4, HIGH);
+      if (gameMode == 1) {
+        endTime = millis() + (long)gameTimeMin * 60 * 1000 + (long)gameTimeSec * 1000;
+      } else if (gameMode == 2) {
+        remainHP = gameHP;
+        startTime = millis();
+      }
+      oledUpdTimer = millis();
+      calcTime();
+      dispUpdate = true;
+      
+    } else if (intData[0] == 0) {
+      digitalWrite(4, LOW);
+      playFlag = false;
+      data = 8;
+      RF24NetworkHeader header(node01);     // (Address where the data is going)
+      bool ok = network.write(header, &data, sizeof(data)); // Send the data
+      dispUpdate = true;
+    } else if (intData[0] == 2) {
+      if (intData[1] == 1) {
+        gameMode = 1; // Игровой режим - на время
+        gameTimeMin = intData[2];
+        gameTimeSec = intData[3];
+        dispUpdate = true;
+      } else if (intData[1] == 2) {
+        gameMode = 2; // Игровой режим - выживание
+        gameHP = intData[2];
+        gameMinDamage = intData[3];
+        gameMaxDamage = intData[4];
+        dispUpdate = true;
+      }
+    }
+  }
+}
+
+void oledDisplay() {
+  if (dispUpdate) {
+    oled.clrScr();      // очистить
+      // курсор в 0,0
+    oled.setFont(SmallFont);    // масштаб шрифта х1
+    //oled.print(nodeState);
+    //oled.print(' ');
+    oled.print(String(hit) + " " + String(wrongHit) + " " + String(miss),    0,      0);
+    
+    if (nodeState > 1) {
+      oled.print(F("Online"), 0, 7);
+    } else {
+      oled.print(F("Offline"), 0, 7);
+    }
+    /*if (playFlag) {
+      oled.print(F("ON"), OLED_R, 7);
+      
+    } else {
+      oled.print(F("STOP"), OLED_R, 7);
+    }*/
+    oled.print(gameMode, OLED_R, 7);
+    oled.setFont(MediumFont);
+    if (gameMode == 1) {
+      if (playFlag) {
+        if (((endTime - millis()) / 1000) % 60 < 10){
+          oled.print(String(((endTime - millis()) / 1000) / 60) + ":0" + String(((endTime - millis()) / 1000) % 60), OLED_C, 4);
+        } else {
+          oled.print(String(((endTime - millis()) / 1000) / 60) + ":" + String(((endTime - millis()) / 1000) % 60), OLED_C, 4);
+        }
+      } else {
+        oled.print(String(gameTimeMin) + ":" + String(gameTimeSec), OLED_C, 4);
+      }
+      
+    } else if (gameMode == 2) {
+      if (playFlag) {
+        oled.print(String(remainHP) + " HP", OLED_C, 2);
+      } else {
+        oled.print(String(gameHP) + " HP", OLED_C, 3);
+        oled.print(F("0:00"), OLED_C, 5);
+      }
+    }
+    
+
+    dispUpdate = false;
+  }
+}
+
+void nodeChecking() {
   if (nodeState == 0) {
     nodeState = 1;
     data = 1;
@@ -174,51 +288,6 @@ void loop() {
       dispUpdate = true;
     }
   }
-  parsing();
-  if (btFlag) {                           // если получены данные
-    btFlag = false;
-    if (intData[0] == 1) {
-      playFlag = true;
-      digitalWrite(4, HIGH);
-      calcTime();
-      dispUpdate = true;
-      
-    } else if (intData[0] == 0) {
-      digitalWrite(4, LOW);
-      playFlag = false;
-      data = 8;
-      RF24NetworkHeader header(node01);     // (Address where the data is going)
-      bool ok = network.write(header, &data, sizeof(data)); // Send the data
-      dispUpdate = true;
-    }
-  }
-  if (dispUpdate) {
-    oled.clrScr();      // очистить
-      // курсор в 0,0
-    oled.setFont(SmallFont);    // масштаб шрифта х1
-    //oled.print(nodeState);
-    //oled.print(' ');
-    oled.print(String(hit) + " " + String(wrongHit) + " " + String(miss),    0,      0);
-    
-    if (nodeState > 1) {
-      oled.print(F("Online"), 0, 7);
-    } else {
-      oled.print(F("Offline"), 0, 7);
-    }
-    oled.print(' ');
-    if (playFlag) {
-      oled.print(F("ON"), OLED_R, 7);
-      
-    } else {
-      oled.print(F("STOP"), OLED_R, 7);
-    }
-    oled.setFont(MediumFont);
-
-    oled.print("0:11", OLED_C, 4);
-
-    dispUpdate = false;
-  }
-
 }
 
 void calcTime() {
