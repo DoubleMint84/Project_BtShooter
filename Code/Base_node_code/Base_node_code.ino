@@ -201,7 +201,9 @@ void oledDisplay() {
 
 void nodeChecking() {
   for (int i = 0; i < 5; i++) {
-    
+    if (nodeState[i] < 2 && playFlag) {
+      continue;
+    }
     if (nodeState[i] == 0) {
       nodeState[i] = 1;
       data = 1;
