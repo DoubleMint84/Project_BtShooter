@@ -13,7 +13,7 @@ unsigned long nodeTimeout = 0;
 GButton but(BTN_PIN, HIGH_PULL);
 RF24 radio(9, 10);               // nRF24L01 (CE,CSN)
 RF24Network network(radio);      // Include the radio in the network
-const uint16_t this_node = 01;   // Address of this node in Octal format ( 04,031, etc)
+const uint16_t this_node = 02;   // Address of this node in Octal format ( 04,031, etc)
 const uint16_t base00 = 00;
 byte incomingData, data, isCivillian;
 bool receivedFlag = false;
